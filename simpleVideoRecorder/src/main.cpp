@@ -83,19 +83,25 @@ void setup() {
     streamSender.setServer(host, serverUdpPort);
 }
 
+unsigned long lastTime = 0;
+unsigned long curTime = 0;
 void loop() {
     camera_fb_t* fb = NULL;
     size_t len = 0;
     Serial.println("do loop");
 
     while (true) {
-        fb = esp_camera_fb_get();
-        if (!fb) {
-            Serial.println("Camera capture failed");
-            return;
+        curTime = millis();
+        if (curTime < 1000 || curTime > lastTime + 300) {
+            lastTime = curTime;
+            fb = esp_camera_fb_get();
+            if (!fb) {
+                Serial.println("Camera capture failed");
+                return;
+            }
+            len = fb->len;
+            streamSender.send(fb->buf, len);
+            esp_camera_fb_return(fb);
         }
-        len = fb->len;
-        streamSender.send(fb->buf, len);
-        esp_camera_fb_return(fb);
     }
 }
