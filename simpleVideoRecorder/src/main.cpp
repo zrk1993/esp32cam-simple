@@ -7,15 +7,15 @@
 #include "PubSubClient.h"
 #include "blink.h"
 
-const char* ssid = "helloword";
-const char* passwd = "zxcvbnm8";
+const char* ssid = "CDS";
+const char* passwd = "Chan888999";
 const char* host = "150.158.27.240";
 const uint16_t serverUdpPort = 8004;
 const uint16_t localUdpPort = 2333;
 
-const char* mqtt_server = "150.158.27.240"; //默认，MQTT服务器
+const char* mqtt_server = "bemfa.com"; //默认，MQTT服务器
 const int mqtt_server_port = 9501;      //默认，MQTT服务器
-const char*  topic = "esp32cam"; 
+const char*  topic = "esp32cam002"; 
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -41,14 +41,23 @@ void connectWifi() {
         Serial.print(".");
         delay(1000);
         tryTimes += 1;
-        if (tryTimes > 300) {
-            Serial.println("delay 10m restart.");
-            delay(1000 * 60 * 10);
+        if (tryTimes == 100) {
+            Serial.println("delay 5m restart.");
+            delay(1000 * 60 * 5);
             ESP.restart();
         }
     }
     Serial.print("\nWiFi connected, local IP address:");
     Serial.println(WiFi.localIP());
+}
+
+uint captureInterval = 1000;
+unsigned long lastSetCaptureIntervalTime = 0;
+void setCaptureInterval (uint v) {
+    captureInterval = v;
+    lastSetCaptureIntervalTime = millis();
+    Serial.print("\nset captureInterval: ");
+    Serial.println(v);
 }
 
 void callback(char* topic, byte* payload, size_t length) {
@@ -60,6 +69,16 @@ void callback(char* topic, byte* payload, size_t length) {
 	}
 	Serial.print("Msg:");
 	Serial.println(msg);
+
+    if (msg.startsWith("CaptureInterval:")) {
+        String s = msg.substring(16);
+        setCaptureInterval(atoi(s.c_str()));
+    }
+    if (msg.equals("restart")) {
+        Serial.println("delay 3s restart.");
+        delay(1000 * 3);
+        ESP.restart();
+    }
 }
 
 void reconnect() {
@@ -72,7 +91,8 @@ void reconnect() {
         tryTimes += 1;
 		Serial.println("Attempting MQTT connection...");
 		// Attempt to connect
-		if (client.connect(getChipID().c_str())) {
+        char* ID_MQTT = "d6d8fcd160ce48a3b38ff76e7e2df726"; // getChipID().c_str();
+		if (client.connect(ID_MQTT)) {
 			Serial.println("connected");
 			Serial.print("subscribe:");
 			Serial.println(topic);
@@ -87,9 +107,10 @@ void reconnect() {
 			blink_err();
 			delay(5000);
 		}
-        if (tryTimes > 100) {
+        if (tryTimes == 20) {
+            Serial.println("delay 3m restart.");
+            delay(1000 * 60 * 3);
             ESP.restart();
-            delay(3000);
         }
 	}
 }
@@ -147,6 +168,7 @@ void setup() {
     while (!Serial) {
         /* code */
     }
+    Serial.println("setup");
     connectWifi();
     setCamera();
 
@@ -159,10 +181,11 @@ void setup() {
 
 unsigned long lastCaptureTime = 0;
 camera_fb_t* fb = NULL;
-
 void doCapture () {
     unsigned long curTime = millis();
-    if (curTime < 1000 || curTime > lastCaptureTime + 300) {
+    if (curTime < lastCaptureTime || curTime > lastCaptureTime + captureInterval) {
+        Serial.print("\ncaptureInterval ");
+        Serial.println(curTime - lastCaptureTime);
         lastCaptureTime = curTime;
         fb = esp_camera_fb_get();
         if (!fb) {
@@ -171,6 +194,12 @@ void doCapture () {
         }
         streamSender.send(fb->buf, fb->len);
         esp_camera_fb_return(fb);
+
+        if (curTime < lastSetCaptureIntervalTime || curTime > lastSetCaptureIntervalTime + 1000 * 60 * 1) {
+            captureInterval =  1000 * 60 * 10;
+            Serial.print("set big capture interval ");
+            Serial.println(captureInterval);
+        }
     }
 }
 
