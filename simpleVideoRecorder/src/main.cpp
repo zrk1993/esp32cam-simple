@@ -149,27 +149,6 @@ void setCamera () {
     s->set_framesize(s, FRAMESIZE_SVGA);
 }
 
-void setup() {
-    Serial.begin(115200);
-    Serial.setDebugOutput(true);
-    while (!Serial) {
-        /* code */
-    }
-    Serial.println("setup");
-
-    esp_task_wdt_init(60 * 3, true);
-    esp_task_wdt_add(NULL);
-
-    connectWifi();
-    setCamera();
-
-    streamSender.begin(WiFi.localIP(), localUdpPort);
-    streamSender.setServer(host, serverUdpPort);
-
-    client.setServer(mqtt_server, mqtt_server_port); // 设置mqtt服务器
-  	client.setCallback(callback); // mqtt消息处理
-}
-
 unsigned long lastCaptureTime = 0;
 camera_fb_t* fb = NULL;
 void doCapture () {
@@ -194,16 +173,34 @@ void doCapture () {
     }
 }
 
-unsigned long lastLoopTime = 0;
-void loop() {
-    if (millis() > lastLoopTime + 1000 * 3) {
-        esp_task_wdt_reset();
+void setup() {
+    Serial.begin(115200);
+    Serial.setDebugOutput(true);
+    while (!Serial) {
+        /* code */
     }
+    Serial.println("setup");
+
+    esp_task_wdt_init(60 * 3, true);
+    esp_task_wdt_add(NULL);
+
+    connectWifi();
+    setCamera();
+
+    streamSender.begin(WiFi.localIP(), localUdpPort);
+    streamSender.setServer(host, serverUdpPort);
+
+    client.setServer(mqtt_server, mqtt_server_port); // 设置mqtt服务器
+  	client.setCallback(callback); // mqtt消息处理
+}
+
+void loop() {
+    esp_task_wdt_reset();
+    
     if (client.connected()) {
         doCapture();
 		client.loop();
 	} else {
 		reconnect();
 	}
-    lastLoopTime = millis();
 }

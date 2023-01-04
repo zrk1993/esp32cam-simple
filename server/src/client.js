@@ -14,6 +14,6 @@ client.on("close",()=>{
     console.log("socket已关闭");
 });
  
-client.send("我是UDP客户端！",8004,"192.168.200.136",(err)=>{
+client.send("我是UDP客户端！",8004,"150.158.27.240",(err)=>{
     if(err) client.close();
 });
