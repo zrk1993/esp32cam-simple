@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "esp_camera.h"
+#include "esp_task_wdt.h"
 #define CAMERA_MODEL_AI_THINKER
 #include "UdpClient.hpp"
 #include "ai_thinker_esp32_cam_meta.h"
@@ -9,13 +10,13 @@
 
 const char* ssid = "CDS";
 const char* passwd = "Chan888999";
-const char* host = "150.158.27.240";
+const char* host = "192.168.200.136";
 const uint16_t serverUdpPort = 8004;
 const uint16_t localUdpPort = 2333;
 
 const char* mqtt_server = "bemfa.com"; //默认，MQTT服务器
 const int mqtt_server_port = 9501;      //默认，MQTT服务器
-const char*  topic = "esp32cam002"; 
+const char*  topic = "esp32cam002";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -36,16 +37,9 @@ void connectWifi() {
 
     Serial.println("connecting to router... ");
     //等待wifi连接成功
-    int tryTimes = 0;
     while (!WiFi.isConnected()) {
         Serial.print(".");
         delay(1000);
-        tryTimes += 1;
-        if (tryTimes == 100) {
-            Serial.println("delay 5m restart.");
-            delay(1000 * 60 * 5);
-            ESP.restart();
-        }
     }
     Serial.print("\nWiFi connected, local IP address:");
     Serial.println(WiFi.localIP());
@@ -86,9 +80,7 @@ void reconnect() {
         delay(1000);
     }
 	// Loop until we're reconnected
-    int tryTimes = 0;
 	while (!client.connected()) {
-        tryTimes += 1;
 		Serial.println("Attempting MQTT connection...");
 		// Attempt to connect
         char* ID_MQTT = "d6d8fcd160ce48a3b38ff76e7e2df726"; // getChipID().c_str();
@@ -103,15 +95,10 @@ void reconnect() {
 			Serial.print("failed, rc=");
 			Serial.print(client.state());
 			Serial.println(" try again in 5 seconds");
-			// Wait 5 seconds before retrying
+			// Wait 3 seconds before retrying
 			blink_err();
 			delay(5000);
 		}
-        if (tryTimes == 20) {
-            Serial.println("delay 3m restart.");
-            delay(1000 * 60 * 3);
-            ESP.restart();
-        }
 	}
 }
 
@@ -169,6 +156,10 @@ void setup() {
         /* code */
     }
     Serial.println("setup");
+
+    esp_task_wdt_init(60 * 3, true);
+    esp_task_wdt_add(NULL);
+
     connectWifi();
     setCamera();
 
@@ -203,11 +194,16 @@ void doCapture () {
     }
 }
 
+unsigned long lastLoopTime = 0;
 void loop() {
+    if (millis() > lastLoopTime + 1000 * 3) {
+        esp_task_wdt_reset();
+    }
     if (client.connected()) {
         doCapture();
 		client.loop();
 	} else {
 		reconnect();
 	}
+    lastLoopTime = millis();
 }
