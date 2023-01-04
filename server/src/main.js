@@ -1,7 +1,6 @@
 var mjpegServer = require('mjpeg-server');
 var pub = require('./channel-pub-sub')
 
-var udpServer = require('./udp-server')
 var mqttServer = require('./mqtt-server')
 
 const express = require('express')
@@ -17,6 +16,7 @@ app.get('/video', (req, res) => {
   var mjpegReqHandler = mjpegServer.createReqHandler(req, res);
   pub.subscribe(req.query.id, function (msg, rinfo) {
     console.log(msg.length)
+    console.log(res.writable)
     mjpegReqHandler.write(msg, function (error) {
       if (error) {
         console.error(error)

@@ -2,6 +2,8 @@ var aedes = require('aedes')()
 var server = require('net').createServer(aedes.handle)
 var port = 8007
 
+var pub = require('./channel-pub-sub')
+
 server.listen(port, function () {
   console.log('mqtt server started and listening on port ', port)
 })
@@ -29,6 +31,9 @@ aedes.on('subscribe', function (subscriptions, client) {
 aedes.on('publish', function (packet, client) {
   console.log('publish');
   console.log(packet)
+  if (packet.topic == 'jpeg') {
+    pub.publish(client.id, packet.payload)
+  }
 });
 
 aedes.send = function (id, topic, msg, cb) {
