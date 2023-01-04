@@ -10,7 +10,7 @@ var httpServer = http.createServer(function (req, res) {
   mjpegReqHandler = mjpegServer.createReqHandler(req, res);
 })
 
-httpServer.listen(8081);
+httpServer.listen(8006);
 
 udpServer.on("message", (msg, rinfo) => {
   //将接收到的消息返回客户端
@@ -28,4 +28,4 @@ udpServer.on("error", (err) => {
   console.err("服务器异常错误：" + err.message);
 });
 
-udpServer.bind(8004, "192.168.200.136");
+udpServer.bind(8005, "192.168.200.136");
