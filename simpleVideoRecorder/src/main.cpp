@@ -10,8 +10,8 @@
 
 const char* ssid = "CDS";
 const char* passwd = "Chan888999";
-const char* host = "192.168.200.136";
-const uint16_t serverUdpPort = 8004;
+const char* host = "150.158.27.240";
+const uint16_t serverUdpPort = 8005;
 const uint16_t localUdpPort = 2333;
 
 const char* mqtt_server = "bemfa.com"; //默认，MQTT服务器
