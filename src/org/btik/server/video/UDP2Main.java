@@ -15,7 +15,7 @@ public class UDP2Main {
     static {
         properties = new Properties();
         try {
-            properties.load(new FileInputStream("/Users/chandashi/Documents/kun/simpleVideoServer/src/light-video.properties"));
+            properties.load(new FileInputStream("/srv/esp32cam-simple/src/light-video.properties"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
