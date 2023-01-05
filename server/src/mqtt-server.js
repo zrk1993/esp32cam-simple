@@ -26,13 +26,11 @@ aedes.on('clientDisconnect', function (client) {
 });
 
 aedes.on('subscribe', function (subscriptions, client) {
-  console.log('subscriptions');
-  console.log(subscriptions)
+  console.log('subscriptions: ' + subscriptions.map(v => v.topic).join(', ') + `, id: ${client ? client.id : 'null'},`)
 });
 
 aedes.on('publish', function (packet, client) {
-  console.log('publish');
-  console.log(packet)
+  console.log(`publish: ${packet.topic}, id: ${client ? client.id : 'null'}, payload length: ${packet.payload.length}`);
   if (packet.topic == 'jpeg') {
     pub.publish(client.id, packet.payload)
     jpegMap[client.id] = packet.payload
@@ -53,7 +51,7 @@ aedes.send = function (id, topic, msg, cb) {
       }
     })
   } else {
-    cb(new Error)
+    cb(new Error(id + ' not online'))
   }
 }
 

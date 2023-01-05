@@ -12,7 +12,6 @@ app.get('/', (req, res) => {
 })
 
 app.get('/video', (req, res) => {
-  mqttServer.send(req.query.id, 'esp32cam', 'inr 1000')
   var mjpegReqHandler = mjpegServer.createReqHandler(req, res);
   pub.subscribe(req.query.id, function (msg, rinfo) {
     console.log(msg.length)
@@ -27,9 +26,16 @@ app.get('/video', (req, res) => {
 
 app.get('/capture', (req, res) => {
   mqttServer.send(req.query.id, 'esp32cam', 'capture', function (e) {
-    res.json({
-      ok: !e
-    })
+    if (e) {
+      res.json({
+        ok: false,
+        msg: e.message
+      })
+    } else {
+      res.json({
+        ok: true
+      })
+    }
   })
 })
 
@@ -41,6 +47,16 @@ app.get('/jpeg', (req, res) => {
     'Content-Length': jpeg.length
   })
   res.end(jpeg)
+})
+
+app.get('/mqtt/publish', (req, res) => {
+  var topic = req.query.topic
+  var msg = req.query.msg
+  mqttServer.send(req.query.id, 'esp32cam', msg, function (e) {
+    res.json({
+      ok: !e
+    })
+  })
 })
 
 app.listen(port, () => {
