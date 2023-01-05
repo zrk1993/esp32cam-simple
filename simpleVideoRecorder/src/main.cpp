@@ -1,9 +1,10 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include "HTTPUpdate.h"
 #include "esp_camera.h"
 #include "esp_task_wdt.h"
 #define CAMERA_MODEL_AI_THINKER
-#include "UdpClient.hpp"
+// #include "UdpClient.hpp"
 #include "ai_thinker_esp32_cam_meta.h"
 #include "PubSubClient.h"
 #include "blink.h"
@@ -11,16 +12,16 @@
 const char* ssid = "CDS";
 const char* passwd = "Chan888999";
 const char* host = "150.158.27.240";
-const uint16_t serverUdpPort = 8005;
-const uint16_t localUdpPort = 2333;
+// const uint16_t serverUdpPort = 8004;
+// const uint16_t localUdpPort = 2333;
 
 const char* mqtt_server = "150.158.27.240"; //默认，MQTT服务器
-const int mqtt_server_port = 8007;      //默认，MQTT服务器
+const int mqtt_server_port = 1883;      //默认，MQTT服务器
 const char*  topic = "esp32cam";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-LightUDP streamSender;
+// LightUDP streamSender;
 
 String getChipID () {
     uint32_t chipId = 0;
@@ -32,8 +33,9 @@ String getChipID () {
 
 void connectWifi() {
     WiFi.mode(WIFI_STA);
-    WiFi.setAutoReconnect(true);
     WiFi.begin(ssid, passwd);
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
 
     Serial.println("connecting to router... ");
     //等待wifi连接成功
@@ -45,13 +47,45 @@ void connectWifi() {
     Serial.println(WiFi.localIP());
 }
 
-uint captureInterval = 1000;
+uint captureInterval = 3000;
 unsigned long lastSetCaptureIntervalTime = 0;
 void setCaptureInterval (uint v) {
     captureInterval = v;
     lastSetCaptureIntervalTime = millis();
     Serial.print("\nset captureInterval: ");
     Serial.println(v);
+}
+
+camera_fb_t* fb = NULL;
+void capture () {
+    fb = esp_camera_fb_get();
+    if (!fb) {
+        Serial.println("Camera capture failed");
+        return;
+    }
+    boolean ok = client.publish("jpeg", fb->buf, fb->len);
+    Serial.print("mqtt send jpeg ");
+    Serial.print(ok ? "OK" : "Fail");
+    Serial.print(" jpeg size ");
+    Serial.println(fb->len);
+    // streamSender.send(fb->buf, fb->len);
+    esp_camera_fb_return(fb);
+}
+
+unsigned long lastCaptureTime = 0;
+void doCapture () {
+    unsigned long curTime = millis();
+    if (curTime < lastCaptureTime || curTime > lastCaptureTime + captureInterval) {
+        Serial.print("\ncaptureInterval ");
+        Serial.println(curTime - lastCaptureTime);
+        lastCaptureTime = curTime;
+        capture();
+        if (curTime < lastSetCaptureIntervalTime || curTime > lastSetCaptureIntervalTime + 1000 * 60) {
+            captureInterval =  1000 * 60 * 10;
+            Serial.print("set big capture interval ");
+            Serial.println(captureInterval);
+        }
+    }
 }
 
 void callback(char* topic, byte* payload, size_t length) {
@@ -73,17 +107,40 @@ void callback(char* topic, byte* payload, size_t length) {
         delay(1000 * 3);
         ESP.restart();
     }
+    if (msg.equals("capture")) {
+        capture();
+    }
+    if (msg.startsWith("update ")) {
+        String url = msg.substring(7);
+        url.trim();
+        Serial.print("Starting OTA ");
+        Serial.println(url);
+        t_httpUpdate_return ret = httpUpdate.update(espClient, url);
+        switch (ret) {
+            case HTTP_UPDATE_FAILED:
+                Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+                break;
+
+            case HTTP_UPDATE_NO_UPDATES:
+                Serial.println("HTTP_UPDATE_NO_UPDATES");
+                break;
+
+            case HTTP_UPDATE_OK:
+                Serial.println("HTTP_UPDATE_OK");
+                ESP.restart();
+                break;
+        }
+    }
 }
 
 void reconnect() {
-    if (!WiFi.isConnected()) {
-        delay(1000);
-    }
 	// Loop until we're reconnected
 	while (!client.connected()) {
+        Serial.print("wifi status ");
+        Serial.println(WiFi.isConnected() ? "connected" : "disconnected");
 		Serial.println("Attempting MQTT connection...");
 		// Attempt to connect
-		if (client.connect("2333")) {
+		if (client.connect(getChipID().c_str())) {
 			Serial.println("connected");
 			Serial.print("subscribe:");
 			Serial.println(topic);
@@ -93,10 +150,10 @@ void reconnect() {
 		} else {
 			Serial.print("failed, rc=");
 			Serial.print(client.state());
-			Serial.println(" try again in 5 seconds");
+			Serial.println(" try again in 3 seconds");
 			// Wait 3 seconds before retrying
 			blink_err();
-			delay(5000);
+			delay(3000);
 		}
 	}
 }
@@ -131,7 +188,7 @@ void setCamera () {
         config.jpeg_quality = 10;
         config.fb_count = 2;
     } else {
-        config.frame_size = FRAMESIZE_SVGA;
+        config.frame_size = FRAMESIZE_VGA;
         config.jpeg_quality = 12;
         config.fb_count = 1;
     }
@@ -145,31 +202,7 @@ void setCamera () {
     Serial.println("get sensor ");
     sensor_t* s = esp_camera_sensor_get();
     // drop down frame size for higher initial frame rate
-    s->set_framesize(s, FRAMESIZE_SVGA);
-}
-
-unsigned long lastCaptureTime = 0;
-camera_fb_t* fb = NULL;
-void doCapture () {
-    unsigned long curTime = millis();
-    if (curTime < lastCaptureTime || curTime > lastCaptureTime + captureInterval) {
-        Serial.print("\ncaptureInterval ");
-        Serial.println(curTime - lastCaptureTime);
-        lastCaptureTime = curTime;
-        fb = esp_camera_fb_get();
-        if (!fb) {
-            Serial.println("Camera capture failed");
-            return;
-        }
-        streamSender.send(fb->buf, fb->len);
-        esp_camera_fb_return(fb);
-
-        if (curTime < lastSetCaptureIntervalTime || curTime > lastSetCaptureIntervalTime + 1000 * 60 * 1) {
-            captureInterval =  1000 * 60 * 5;
-            Serial.print("set big capture interval ");
-            Serial.println(captureInterval);
-        }
-    }
+    s->set_framesize(s, FRAMESIZE_VGA);
 }
 
 void setup() {
@@ -178,16 +211,18 @@ void setup() {
     while (!Serial) {
         /* code */
     }
-    Serial.println("setup");
+    Serial.println("start...");
+    Serial.print("chipid: ");
+    Serial.println(getChipID().c_str());
 
-    esp_task_wdt_init(60 * 3, true);
+    esp_task_wdt_init(60 * 1, true);
     esp_task_wdt_add(NULL);
 
     connectWifi();
     setCamera();
 
-    streamSender.begin(WiFi.localIP(), localUdpPort);
-    streamSender.setServer(host, serverUdpPort);
+    // streamSender.begin(WiFi.localIP(), localUdpPort);
+    // streamSender.setServer(host, serverUdpPort);
 
     client.setServer(mqtt_server, mqtt_server_port); // 设置mqtt服务器
   	client.setCallback(callback); // mqtt消息处理
