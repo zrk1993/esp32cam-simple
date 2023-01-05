@@ -80,7 +80,7 @@ void doCapture () {
         Serial.println(curTime - lastCaptureTime);
         lastCaptureTime = curTime;
         capture();
-        if (curTime < lastSetCaptureIntervalTime || curTime > lastSetCaptureIntervalTime + 1000 * 60) {
+        if (curTime < lastSetCaptureIntervalTime || curTime > lastSetCaptureIntervalTime + 1000 * 30) {
             captureInterval =  1000 * 60 * 10;
             Serial.print("set big capture interval ");
             Serial.println(captureInterval);
