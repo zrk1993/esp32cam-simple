@@ -1,31 +1,64 @@
-var http = require('http');
-var dgram = require('dgram');
-
-var udpServer = dgram.createSocket("udp4");
 var mjpegServer = require('mjpeg-server');
+var pub = require('./channel-pub-sub')
 
-var mjpegReqHandler = null;
+var mqttServer = require('./mqtt-server')
 
-var httpServer = http.createServer(function (req, res) {
-  mjpegReqHandler = mjpegServer.createReqHandler(req, res);
+const express = require('express')
+const app = express()
+const port = 8006
+
+app.get('/', (req, res) => {
+  res.send('Hello World!')
 })
 
-httpServer.listen(8006);
+app.get('/video', (req, res) => {
+  var mjpegReqHandler = mjpegServer.createReqHandler(req, res);
+  pub.subscribe(req.query.id, function (msg, rinfo) {
+    console.log(msg.length)
+    console.log(res.writable)
+    mjpegReqHandler.write(msg, function (error) {
+      if (error) {
+        console.error(error)
+      }
+    });
+  })
+})
 
-udpServer.on("message", (msg, rinfo) => {
-  //将接收到的消息返回客户端
-  var strmsg = "你好，UDP客户端，消息已经收到！";
-  // udpServer.send(strmsg, rinfo.port, rinfo.address);
-  console.log("服务器接收到来自" + rinfo.address + ":" + rinfo.port + " 的消息：" + msg.toString());
-});
+app.get('/capture', (req, res) => {
+  mqttServer.send(req.query.id, 'esp32cam', 'capture', function (e) {
+    if (e) {
+      res.json({
+        ok: false,
+        msg: e.message
+      })
+    } else {
+      res.json({
+        ok: true
+      })
+    }
+  })
+})
 
-udpServer.on("listening", () => {
-  var adress = udpServer.address();
-  console.log("服务器监听：", adress.adress + ":" + adress.port);
-});
+app.get('/jpeg', (req, res) => {
+  var id = req.query.id
+  var jpeg = mqttServer.jpegMap[id] || Buffer.from("error")
+  res.writeHead(200,{
+    'Content-Type': 'image/jpeg',
+    'Content-Length': jpeg.length
+  })
+  res.end(jpeg)
+})
 
-udpServer.on("error", (err) => {
-  console.error("服务器异常错误：" + err.message);
-});
+app.get('/mqtt/publish', (req, res) => {
+  var topic = req.query.topic
+  var msg = req.query.msg
+  mqttServer.send(req.query.id, 'esp32cam', msg, function (e) {
+    res.json({
+      ok: !e
+    })
+  })
+})
 
-udpServer.bind(8005, '150.158.27.240');
+app.listen(port, () => {
+  console.log(`express app listening on port ${port}`)
+})
