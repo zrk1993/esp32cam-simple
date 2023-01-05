@@ -14,9 +14,9 @@ const char* host = "150.158.27.240";
 const uint16_t serverUdpPort = 8005;
 const uint16_t localUdpPort = 2333;
 
-const char* mqtt_server = "bemfa.com"; //默认，MQTT服务器
-const int mqtt_server_port = 9501;      //默认，MQTT服务器
-const char*  topic = "esp32cam002";
+const char* mqtt_server = "150.158.27.240"; //默认，MQTT服务器
+const int mqtt_server_port = 8007;      //默认，MQTT服务器
+const char*  topic = "esp32cam";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -64,8 +64,8 @@ void callback(char* topic, byte* payload, size_t length) {
 	Serial.print("Msg:");
 	Serial.println(msg);
 
-    if (msg.startsWith("CaptureInterval:")) {
-        String s = msg.substring(16);
+    if (msg.startsWith("inr")) {
+        String s = msg.substring(4);
         setCaptureInterval(atoi(s.c_str()));
     }
     if (msg.equals("restart")) {
@@ -83,8 +83,7 @@ void reconnect() {
 	while (!client.connected()) {
 		Serial.println("Attempting MQTT connection...");
 		// Attempt to connect
-        char* ID_MQTT = "d6d8fcd160ce48a3b38ff76e7e2df726"; // getChipID().c_str();
-		if (client.connect(ID_MQTT)) {
+		if (client.connect("2333")) {
 			Serial.println("connected");
 			Serial.print("subscribe:");
 			Serial.println(topic);
@@ -166,7 +165,7 @@ void doCapture () {
         esp_camera_fb_return(fb);
 
         if (curTime < lastSetCaptureIntervalTime || curTime > lastSetCaptureIntervalTime + 1000 * 60 * 1) {
-            captureInterval =  1000 * 60 * 10;
+            captureInterval =  1000 * 60 * 5;
             Serial.print("set big capture interval ");
             Serial.println(captureInterval);
         }
@@ -196,7 +195,6 @@ void setup() {
 
 void loop() {
     esp_task_wdt_reset();
-    
     if (client.connected()) {
         doCapture();
 		client.loop();
