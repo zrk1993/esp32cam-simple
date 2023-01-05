@@ -4,6 +4,8 @@ var port = 8007
 
 var pub = require('./channel-pub-sub')
 
+var jpegMap = {}
+
 server.listen(port, function () {
   console.log('mqtt server started and listening on port ', port)
 })
@@ -33,6 +35,7 @@ aedes.on('publish', function (packet, client) {
   console.log(packet)
   if (packet.topic == 'jpeg') {
     pub.publish(client.id, packet.payload)
+    jpegMap[client.id] = packet.payload
   }
 });
 
@@ -49,7 +52,11 @@ aedes.send = function (id, topic, msg, cb) {
         cb(error)
       }
     })
+  } else {
+    cb(new Error)
   }
 }
+
+aedes.jpegMap = jpegMap
 
 module.exports = aedes
